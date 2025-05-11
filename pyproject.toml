@@ -1,10 +1,12 @@
 [project]
 name = "lyricsync"
 version = "0.1.0"
-description = "Add your description here"
+description = "一款桌面歌词同步软件"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.9, <3.10"
+
 dependencies = [
-    "PyQt5",
-    "Pymem"
+    "pyqt5==5.15.11",
+    "pyqt5-qt5==5.15.2",
+    "pymem"
 ]
