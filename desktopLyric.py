@@ -8,18 +8,18 @@ import socket
 import json
 import threading
 import time
+import os
 
 """
 先搞个简单版本吧, 只显示单行歌词
 """
 class Demo(QWidget):
-    # UDP广播端口
-    BROADCAST_PORT = 12345
-    # 广播地址
-    BROADCAST_ADDR = '<broadcast>'
+    # 组播地址和端口
+    MULTICAST_ADDR = '239.255.255.250'  # 使用标准组播地址
+    MULTICAST_PORT = 31314
 
     def __init__(self):
-        self.refresh_interval = 500  # 歌词刷新间隔，单位：毫秒
+        self.refresh_interval = 300  # 歌词刷新间隔，单位：毫秒
         self.is_master = False  # 是否是主设备
         self.last_lyric = None  # 上一次的歌词
         self.last_lyric_time = 0  # 上一次歌词的时间戳
@@ -62,8 +62,14 @@ class Demo(QWidget):
         try:
             # 创建UDP socket
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            self.sock.bind(('', self.BROADCAST_PORT))
+            
+            # 设置组播选项
+            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
+                               socket.inet_aton(self.MULTICAST_ADDR) + socket.inet_aton('0.0.0.0'))
+            
+            # 绑定到组播端口
+            self.sock.bind(('', self.MULTICAST_PORT))
             
             # 启动接收线程
             self.receive_thread = threading.Thread(target=self.receive_lyric, daemon=True)
@@ -108,7 +114,7 @@ class Demo(QWidget):
                 log.error(f"接收歌词失败: {e}")
 
     def broadcast_lyric(self, lyric, duration):
-        """广播歌词"""
+        """发送组播歌词"""
         if not self.is_master:
             return
             
@@ -118,9 +124,9 @@ class Demo(QWidget):
                 'duration': duration,
                 'timestamp': time.time()
             }).encode()
-            self.sock.sendto(data, (self.BROADCAST_ADDR, self.BROADCAST_PORT))
+            self.sock.sendto(data, (self.MULTICAST_ADDR, self.MULTICAST_PORT))
         except Exception as e:
-            log.error(f"广播歌词失败: {e}")
+            log.error(f"发送歌词失败: {e}")
 
     def getLyric(self) -> str:
         if not self.is_master:
