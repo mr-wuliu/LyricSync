@@ -8,6 +8,7 @@ from typing import Optional, Tuple
 import subprocess
 import sys
 import os
+import netifaces
 
 class LyricNetwork:
     MULTICAST_ADDR = '239.255.255.250'
@@ -19,6 +20,22 @@ class LyricNetwork:
         self.lyric_queue = Queue()
         self.receive_thread = None
         self.running = True
+        
+    def _log_network_info(self):
+        """记录网络接口信息"""
+        try:
+            interfaces = netifaces.interfaces()
+            log.info("网络接口信息:")
+            for iface in interfaces:
+                addrs = netifaces.ifaddresses(iface)
+                if netifaces.AF_INET in addrs:
+                    for addr in addrs[netifaces.AF_INET]:
+                        log.info(f"接口 {iface}:")
+                        log.info(f"  IP地址: {addr['addr']}")
+                        log.info(f"  子网掩码: {addr['netmask']}")
+                        log.info(f"  广播地址: {addr.get('broadcast', 'N/A')}")
+        except Exception as e:
+            log.error(f"获取网络信息失败: {e}")
         
     def _check_firewall(self) -> bool:
         """检查并配置防火墙规则"""
@@ -67,6 +84,9 @@ class LyricNetwork:
     def init_network(self, is_master: bool) -> bool:
         """初始化网络"""
         try:
+            # 记录网络信息
+            self._log_network_info()
+            
             # 检查防火墙规则
             if not self._check_firewall():
                 log.warning("防火墙规则配置失败，可能会影响网络通信")
@@ -82,10 +102,12 @@ class LyricNetwork:
             
             # 绑定到所有接口
             self.sock.bind(('0.0.0.0', self.MULTICAST_PORT))
+            log.info(f"已绑定到端口 {self.MULTICAST_PORT}")
             
             # 加入组播组
             mreq = socket.inet_aton(self.MULTICAST_ADDR) + socket.inet_aton('0.0.0.0')
             self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+            log.info(f"已加入组播组 {self.MULTICAST_ADDR}")
             
             # 设置组播回环
             self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, 1)
@@ -110,7 +132,7 @@ class LyricNetwork:
                 if not self.is_master:
                     lyric_data = json.loads(data.decode())
                     self.lyric_queue.put(lyric_data)
-                    log.debug(f"收到来自 {addr} 的歌词")
+                    log.debug(f"收到来自 {addr} 的歌词: {lyric_data['lyric'][:20]}...")
             except Exception as e:
                 log.error(f"接收歌词失败: {e}")
                 
@@ -150,6 +172,8 @@ class LyricNetwork:
                 # 离开组播组
                 mreq = socket.inet_aton(self.MULTICAST_ADDR) + socket.inet_aton('0.0.0.0')
                 self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_DROP_MEMBERSHIP, mreq)
+                log.info("已离开组播组")
             except:
                 pass
             self.sock.close()
+            log.info("已关闭网络连接")
