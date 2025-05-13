@@ -19,6 +19,19 @@ class LyricNetwork:
         self.lyric_queue = Queue()
         self.receive_thread = None
         self.running = True
+        self.local_ip = None
+        
+    def _get_local_ip(self) -> str:
+        """获取本地IP地址"""
+        try:
+            # 创建一个临时socket来获取本地IP
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(('8.8.8.8', 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+            return local_ip
+        except:
+            return None
         
     def _log_network_info(self):
         """记录网络接口信息"""
@@ -30,6 +43,13 @@ class LyricNetwork:
             for ip in ip_list:
                 if not ip.startswith('127.'):
                     log.info(f"  {ip}")
+            
+            # 获取并记录实际使用的IP
+            self.local_ip = self._get_local_ip()
+            if self.local_ip:
+                log.info(f"将使用IP地址: {self.local_ip}")
+            else:
+                log.warning("无法确定本地IP地址")
         except Exception as e:
             log.error(f"获取网络信息失败: {e}")
         
@@ -101,7 +121,10 @@ class LyricNetwork:
             log.info(f"已绑定到端口 {self.MULTICAST_PORT}")
             
             # 加入组播组
-            mreq = socket.inet_aton(self.MULTICAST_ADDR) + socket.inet_aton('0.0.0.0')
+            if self.local_ip:
+                mreq = socket.inet_aton(self.MULTICAST_ADDR) + socket.inet_aton(self.local_ip)
+            else:
+                mreq = socket.inet_aton(self.MULTICAST_ADDR) + socket.inet_aton('0.0.0.0')
             self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
             log.info(f"已加入组播组 {self.MULTICAST_ADDR}")
             
@@ -109,7 +132,9 @@ class LyricNetwork:
             self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, 1)
             
             # 设置组播接口
-            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton('0.0.0.0'))
+            if self.local_ip:
+                self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(self.local_ip))
+                log.info(f"已设置组播接口为 {self.local_ip}")
             
             self.receive_thread = threading.Thread(target=self._receive_lyric, daemon=True)
             self.receive_thread.start()
@@ -166,7 +191,10 @@ class LyricNetwork:
         if self.sock:
             try:
                 # 离开组播组
-                mreq = socket.inet_aton(self.MULTICAST_ADDR) + socket.inet_aton('0.0.0.0')
+                if self.local_ip:
+                    mreq = socket.inet_aton(self.MULTICAST_ADDR) + socket.inet_aton(self.local_ip)
+                else:
+                    mreq = socket.inet_aton(self.MULTICAST_ADDR) + socket.inet_aton('0.0.0.0')
                 self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_DROP_MEMBERSHIP, mreq)
                 log.info("已离开组播组")
             except:
