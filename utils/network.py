@@ -8,7 +8,6 @@ from typing import Optional, Tuple
 import subprocess
 import sys
 import os
-import netifaces
 
 class LyricNetwork:
     MULTICAST_ADDR = '239.255.255.250'
@@ -24,16 +23,13 @@ class LyricNetwork:
     def _log_network_info(self):
         """记录网络接口信息"""
         try:
-            interfaces = netifaces.interfaces()
-            log.info("网络接口信息:")
-            for iface in interfaces:
-                addrs = netifaces.ifaddresses(iface)
-                if netifaces.AF_INET in addrs:
-                    for addr in addrs[netifaces.AF_INET]:
-                        log.info(f"接口 {iface}:")
-                        log.info(f"  IP地址: {addr['addr']}")
-                        log.info(f"  子网掩码: {addr['netmask']}")
-                        log.info(f"  广播地址: {addr.get('broadcast', 'N/A')}")
+            hostname = socket.gethostname()
+            ip_list = socket.gethostbyname_ex(hostname)[2]
+            log.info(f"主机名: {hostname}")
+            log.info("IP地址列表:")
+            for ip in ip_list:
+                if not ip.startswith('127.'):
+                    log.info(f"  {ip}")
         except Exception as e:
             log.error(f"获取网络信息失败: {e}")
         
