@@ -5,6 +5,9 @@ import time
 import logging as log
 from queue import Queue
 from typing import Optional, Tuple
+import subprocess
+import sys
+import os
 
 class LyricNetwork:
     MULTICAST_ADDR = '239.255.255.250'
@@ -17,9 +20,57 @@ class LyricNetwork:
         self.receive_thread = None
         self.running = True
         
+    def _check_firewall(self) -> bool:
+        """检查并配置防火墙规则"""
+        if sys.platform != 'win32':
+            return True
+            
+        try:
+            # 检查规则是否存在
+            check_cmd = f'netsh advfirewall firewall show rule name="LyricSync"'
+            result = subprocess.run(check_cmd, shell=True, capture_output=True, encoding='utf-8')
+            
+            if "No rules match the specified criteria" in result.stdout or "没有找到规则" in result.stdout:
+                # 添加入站规则
+                inbound_cmd = (
+                    f'netsh advfirewall firewall add rule '
+                    f'name="LyricSync" '
+                    f'dir=in '
+                    f'action=allow '
+                    f'protocol=UDP '
+                    f'localport={self.MULTICAST_PORT} '
+                    f'enable=yes '
+                    f'profile=any'
+                )
+                subprocess.run(inbound_cmd, shell=True, check=True, encoding='utf-8')
+                
+                # 添加出站规则
+                outbound_cmd = (
+                    f'netsh advfirewall firewall add rule '
+                    f'name="LyricSync" '
+                    f'dir=out '
+                    f'action=allow '
+                    f'protocol=UDP '
+                    f'localport={self.MULTICAST_PORT} '
+                    f'enable=yes '
+                    f'profile=any'
+                )
+                subprocess.run(outbound_cmd, shell=True, check=True, encoding='utf-8')
+                
+                log.info("已添加防火墙规则")
+            return True
+                
+        except Exception as e:
+            log.error(f"配置防火墙规则失败: {e}")
+            return False
+        
     def init_network(self, is_master: bool) -> bool:
         """初始化网络"""
         try:
+            # 检查防火墙规则
+            if not self._check_firewall():
+                log.warning("防火墙规则配置失败，可能会影响网络通信")
+            
             self.is_master = is_master
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             
