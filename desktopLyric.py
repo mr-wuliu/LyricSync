@@ -23,25 +23,28 @@ class Demo(QWidget):
                 process_name = "kwmusic.exe",
                 dll_name="UIDeskLyric.dll"
             )
+            self.timer = QTimer(self)
+            self.timer.timeout.connect(self.updateLyric)
+            self.timer.start(self.refresh_interval)
+        else:
+            self.desktopLyric = QWidget()
+            self.lyricWidget = LyricWidget(self.desktopLyric)
 
-        self.desktopLyric = QWidget()
-        self.lyricWidget = LyricWidget(self.desktopLyric)
+            self.desktopLyric.setAttribute(Qt.WA_TranslucentBackground)
+            self.desktopLyric.setWindowFlags(
+                Qt.FramelessWindowHint | Qt.SubWindow | Qt.WindowStaysOnTopHint)
+            self.desktopLyric.resize(1200, 150)
+            self.lyricWidget.resize(1200, 150)
+            
+            self.desktopLyric.show()
 
-        self.desktopLyric.setAttribute(Qt.WA_TranslucentBackground)
-        self.desktopLyric.setWindowFlags(
-            Qt.FramelessWindowHint | Qt.SubWindow | Qt.WindowStaysOnTopHint)
-        self.desktopLyric.resize(1200, 150)
-        self.lyricWidget.resize(1200, 150)
-        
-        self.desktopLyric.show()
+            self.current_lyric = ["loading"]
+            self.lyricWidget.setLyric(self.current_lyric, [1000])
+            self.lyricWidget.setPlay(True)
 
-        self.current_lyric = ["loading"]
-        self.lyricWidget.setLyric(self.current_lyric, [1000])
-        self.lyricWidget.setPlay(True)
-
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.updateLyric)
-        self.timer.start(self.refresh_interval)
+            self.timer = QTimer(self)
+            self.timer.timeout.connect(self.updateLyric)
+            self.timer.start(self.refresh_interval)
 
     def init_network(self):
         """初始化网络"""
@@ -105,8 +108,6 @@ class Demo(QWidget):
             new_lyric = self.load_lyric_mem()
             if new_lyric and new_lyric != self.last_lyric:
                 self.last_lyric = new_lyric
-                self.lyricWidget.setLyric([new_lyric], [3000], update=True)
-                self.lyricWidget.setPlay(True)
                 self.network.send_lyric(new_lyric)
         else:
             result = self.load_lyric_net()
