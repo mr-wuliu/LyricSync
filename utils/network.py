@@ -23,11 +23,24 @@ class LyricNetwork:
             self.is_master = is_master
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             
+            # 设置组播TTL为2，允许跨子网
             self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
-            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
-                               socket.inet_aton(self.MULTICAST_ADDR) + socket.inet_aton('0.0.0.0'))
             
-            self.sock.bind(('', self.MULTICAST_PORT))
+            # 允许端口重用
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            
+            # 绑定到所有接口
+            self.sock.bind(('0.0.0.0', self.MULTICAST_PORT))
+            
+            # 加入组播组
+            mreq = socket.inet_aton(self.MULTICAST_ADDR) + socket.inet_aton('0.0.0.0')
+            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+            
+            # 设置组播回环
+            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, 1)
+            
+            # 设置组播接口
+            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton('0.0.0.0'))
             
             self.receive_thread = threading.Thread(target=self._receive_lyric, daemon=True)
             self.receive_thread.start()
@@ -46,6 +59,7 @@ class LyricNetwork:
                 if not self.is_master:
                     lyric_data = json.loads(data.decode())
                     self.lyric_queue.put(lyric_data)
+                    log.debug(f"收到来自 {addr} 的歌词")
             except Exception as e:
                 log.error(f"接收歌词失败: {e}")
                 
@@ -61,6 +75,7 @@ class LyricNetwork:
                 'timestamp': time.time()
             }).encode()
             self.sock.sendto(data, (self.MULTICAST_ADDR, self.MULTICAST_PORT))
+            log.debug(f"发送歌词: {lyric[:20]}...")
             return True
         except Exception as e:
             log.error(f"发送歌词失败: {e}")
@@ -80,4 +95,10 @@ class LyricNetwork:
         """关闭网络连接"""
         self.running = False
         if self.sock:
+            try:
+                # 离开组播组
+                mreq = socket.inet_aton(self.MULTICAST_ADDR) + socket.inet_aton('0.0.0.0')
+                self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_DROP_MEMBERSHIP, mreq)
+            except:
+                pass
             self.sock.close()
