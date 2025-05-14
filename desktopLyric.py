@@ -1,5 +1,6 @@
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QWidget, QApplication, QMessageBox
+from PyQt5.QtGui import QPainter, QColor
 import sys
 from ui.lyricWidget import LyricWidget
 from utils.hacktool import MemoryHookTool
@@ -7,17 +8,57 @@ from utils.network import LyricNetwork
 import logging as log
 import time
 
+# Define the new HoverContainerWidget
+class HoverContainerWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.mouse_over = False
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        # The following attributes help with custom-drawn transparent windows, especially on Windows
+        self.setAttribute(Qt.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
+        # Qt.Tool is often better for frameless, always-on-top widgets than Qt.SubWindow regarding system compatibility
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint)
+        self.setMouseTracking(True)  # To receive mouse move events even when no button is pressed
+
+    def enterEvent(self, event):
+        """Called when the mouse enters the widget's area."""
+        self.mouse_over = True
+        self.update()  # Trigger a repaint
+
+    def leaveEvent(self, event):
+        """Called when the mouse leaves the widget's area."""
+        self.mouse_over = False
+        self.update()  # Trigger a repaint
+
+    def paintEvent(self, event):
+        """Paint the widget. If mouse is over, draw the background."""
+        # We don't call super().paintEvent(event) here to have full control over painting
+        # and to avoid potential issues with WA_TranslucentBackground on some platforms.
+        if self.mouse_over:
+            painter = QPainter(self)
+            painter.setRenderHints(QPainter.Antialiasing)
+            # Semi-transparent black background
+            background_color = QColor(0, 0, 0, 100) # RGBA: Black with alpha 100 (0-255)
+            painter.fillRect(self.rect(), background_color)
+
+    def resizeEvent(self, event):
+        """Called when the widget is resized."""
+        super().resizeEvent(event) # Important to call the base class's event handler
+        # Ensure LyricWidget child (if any) resizes with the container
+        for child in self.findChildren(LyricWidget): # LyricWidget needs to be imported or defined for this to work
+            child.resize(self.size())
+
 class Demo(QWidget):
     def __init__(self):
+        super().__init__(parent=None)
+
         self.refresh_interval = 300
         self.is_master = False
         self.last_lyric = None
         self.last_lyric_time = 0
 
-        super().__init__(parent=None)
-
         self.init_network()
-
         if self.is_master:
             self.hookTool = MemoryHookTool(
                 process_name = "kwmusic.exe",
@@ -27,14 +68,14 @@ class Demo(QWidget):
             self.timer.timeout.connect(self.updateLyric)
             self.timer.start(self.refresh_interval)
         else:
-            self.desktopLyric = QWidget()
-            self.lyricWidget = LyricWidget(self.desktopLyric)
+            # Use HoverContainerWidget for the desktop lyric window
+            self.desktopLyric = HoverContainerWidget()
+            self.lyricWidget = LyricWidget(self.desktopLyric) # LyricWidget is a child
 
-            self.desktopLyric.setAttribute(Qt.WA_TranslucentBackground)
-            self.desktopLyric.setWindowFlags(
-                Qt.FramelessWindowHint | Qt.SubWindow | Qt.WindowStaysOnTopHint)
+            # Window size
             self.desktopLyric.resize(1200, 150)
-            self.lyricWidget.resize(1200, 150)
+            # Ensure LyricWidget fills the HoverContainerWidget
+            self.lyricWidget.resize(self.desktopLyric.width(), self.desktopLyric.height())
             
             self.desktopLyric.show()
 
