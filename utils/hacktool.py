@@ -79,7 +79,7 @@ class MemoryHookTool:
             return ""
 
         # 定位第一个 \r\n\x00 作为歌词终止标志
-        end_index = text.find("\r\n\x00")
+        end_index = text.find("\r\n")
         if end_index != -1:
             return text[:end_index].strip()
         else:

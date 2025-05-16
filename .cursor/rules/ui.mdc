@@ -1,0 +1,31 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# UI 开发规范
+
+## PyQt 组件规范
+- 所有 UI 组件类都应该继承自 QWidget 或其子类
+- 组件命名应该清晰表达其功能
+- 使用 Qt Designer 创建的 UI 文件应该放在 ui 目录下
+
+## 样式规范
+- 使用 QSS 进行样式定义
+- 样式文件应该集中管理
+- 避免硬编码颜色值，使用主题变量
+
+## 布局规范
+- 优先使用 QVBoxLayout 和 QHBoxLayout
+- 合理使用 QGridLayout 进行复杂布局
+- 注意控件的对齐和间距
+
+## 事件处理
+- 信号和槽的连接应该清晰可读
+- 避免过长的槽函数，适当拆分
+- 使用 lambda 表达式时要谨慎
+
+## 性能优化
+- 避免在主线程中进行耗时操作
+- 使用 QThread 处理后台任务
+- 合理使用 QTimer 进行定时操作
