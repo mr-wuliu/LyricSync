@@ -1,6 +1,7 @@
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QRectF
-from PyQt5.QtWidgets import QWidget, QApplication, QMessageBox, QPushButton, QHBoxLayout, QVBoxLayout
-from PyQt5.QtGui import QPainter, QColor, QPainterPath
+from PyQt5.QtWidgets import (QWidget, QApplication, QMessageBox, QPushButton, 
+                           QHBoxLayout, QVBoxLayout, QSystemTrayIcon, QMenu, QStyle)
+from PyQt5.QtGui import QPainter, QColor, QPainterPath, QIcon
 import sys
 from ui.lyricWidget import LyricWidget
 from utils.hacktool import MemoryHookTool
@@ -134,6 +135,19 @@ class Demo(QWidget):
         self.last_lyric = None
         self.last_lyric_time = 0
 
+        # 创建系统托盘
+        self.tray_icon = QSystemTrayIcon(self)
+        self.tray_icon.setIcon(self.style().standardIcon(QStyle.SP_ComputerIcon))
+        
+        # 创建托盘菜单
+        self.tray_menu = QMenu()
+        self.quit_action = self.tray_menu.addAction("退出")
+        self.quit_action.triggered.connect(self.close)
+        
+        # 设置托盘菜单
+        self.tray_icon.setContextMenu(self.tray_menu)
+        self.tray_icon.show()
+
         self.init_network()
         if self.is_master:
             self.hookTool = MemoryHookTool(
@@ -235,6 +249,8 @@ class Demo(QWidget):
         """关闭窗口时清理资源"""
         if hasattr(self, 'network'):
             self.network.close()
+        if hasattr(self, 'tray_icon'):
+            self.tray_icon.hide()
         super().closeEvent(event)
 
 if __name__ == '__main__':
