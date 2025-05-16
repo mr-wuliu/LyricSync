@@ -1,6 +1,6 @@
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtWidgets import QWidget, QApplication, QMessageBox
-from PyQt5.QtGui import QPainter, QColor
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QRectF
+from PyQt5.QtWidgets import QWidget, QApplication, QMessageBox, QPushButton, QHBoxLayout, QVBoxLayout
+from PyQt5.QtGui import QPainter, QColor, QPainterPath
 import sys
 from ui.lyricWidget import LyricWidget
 from utils.hacktool import MemoryHookTool
@@ -9,6 +9,8 @@ import logging as log
 import time
 
 class HoverContainerWidget(QWidget):
+    closeRequested = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.mouse_over = False
@@ -17,23 +19,82 @@ class HoverContainerWidget(QWidget):
         self.setAutoFillBackground(False)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint)
         self.setMouseTracking(True)
+        
+        # 主垂直布局
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+        
+        # 菜单栏
+        self.menu_bar = QWidget(self)
+        self.menu_bar.setFixedHeight(40)
+        self.menu_layout = QHBoxLayout(self.menu_bar)
+        self.menu_layout.setContentsMargins(10, 5, 10, 5)
+        self.menu_layout.setSpacing(10)
+        
+        # 示例按钮（可根据需要添加/替换）
+        self.close_button = QPushButton("×", self.menu_bar)
+        self.close_button.setFixedSize(30, 30)
+        self.close_button.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                color: white;
+                font-size: 20px;
+                border: none;
+            }
+            QPushButton:hover {
+                background: #ff5555;
+            }
+        """)
+        self.close_button.clicked.connect(self.closeRequested.emit)
+        self.menu_layout.addStretch()
+        self.menu_layout.addWidget(self.close_button)
+        
+        self.main_layout.addWidget(self.menu_bar)
+        # 初始为全透明
+        self.set_background_and_menu_visible(False)
+        
+    def set_background_and_menu_visible(self, visible):
+        if visible:
+            self.menu_bar.setStyleSheet("""
+                background: rgba(80,80,80,0.8);
+                border-top-left-radius: 20px;
+                border-top-right-radius: 20px;
+                border-bottom: 1px solid #aaa;
+            """)
+        else:
+            self.menu_bar.setStyleSheet("""
+                background: rgba(80,80,80,0.0);
+                border-top-left-radius: 20px;
+                border-top-right-radius: 20px;
+                border-bottom: 1px solid rgba(0,0,0,0);  /* 变为全透明 */
+            """)
+        self.repaint()
+
     def enterEvent(self, event):
         """Called when the mouse enters the widget's area."""
         self.mouse_over = True
+        self.set_background_and_menu_visible(True)
         self.update()
 
     def leaveEvent(self, event):
         """Called when the mouse leaves the widget's area."""
         self.mouse_over = False
+        self.set_background_and_menu_visible(False)
         self.update()
 
     def paintEvent(self, event):
-        """Paint the widget. If mouse is over, draw the background."""
+        painter = QPainter(self)
+        painter.setRenderHints(QPainter.Antialiasing)
+        radius = 20
+        path = QPainterPath()
+        rect = QRectF(self.rect())
+        path.addRoundedRect(rect, radius, radius)
         if self.mouse_over:
-            painter = QPainter(self)
-            painter.setRenderHints(QPainter.Antialiasing)
             background_color = QColor(0, 0, 0, 100)
-            painter.fillRect(self.rect(), background_color)
+        else:
+            background_color = QColor(0, 0, 0, 0)  # 全透明
+        painter.fillPath(path, background_color)
 
     def resizeEvent(self, event):
         """Called when the widget is resized."""
@@ -61,11 +122,10 @@ class Demo(QWidget):
             self.timer.start(self.refresh_interval)
         else:
             self.desktopLyric = HoverContainerWidget()
-            self.lyricWidget = LyricWidget(self.desktopLyric) # LyricWidget is a child
-
+            self.desktopLyric.closeRequested.connect(self.close)
+            self.lyricWidget = LyricWidget(self.desktopLyric)
+            self.desktopLyric.main_layout.addWidget(self.lyricWidget, 1)  # 让歌词区在菜单栏下方自动填满
             self.desktopLyric.resize(1200, 150)
-            self.lyricWidget.resize(self.desktopLyric.width(), self.desktopLyric.height())
-            
             self.desktopLyric.show()
 
             self.current_lyric = ["loading"]
