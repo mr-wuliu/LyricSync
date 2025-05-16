@@ -54,6 +54,14 @@ class HoverContainerWidget(QWidget):
         # 初始为全透明
         self.set_background_and_menu_visible(False)
         
+        self._drag_active = False
+        self._drag_pos = None
+
+        # 让菜单栏接受鼠标事件
+        self.menu_bar.mousePressEvent = self.menu_bar_mousePressEvent
+        self.menu_bar.mouseMoveEvent = self.menu_bar_mouseMoveEvent
+        self.menu_bar.mouseReleaseEvent = self.menu_bar_mouseReleaseEvent
+
     def set_background_and_menu_visible(self, visible):
         if visible:
             self.menu_bar.setStyleSheet("""
@@ -101,6 +109,21 @@ class HoverContainerWidget(QWidget):
         super().resizeEvent(event)
         for child in self.findChildren(LyricWidget):
             child.resize(self.size())
+
+    def menu_bar_mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_active = True
+            self._drag_pos = event.globalPos() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def menu_bar_mouseMoveEvent(self, event):
+        if self._drag_active and event.buttons() & Qt.LeftButton:
+            self.move(event.globalPos() - self._drag_pos)
+            event.accept()
+
+    def menu_bar_mouseReleaseEvent(self, event):
+        self._drag_active = False
+        event.accept()
 
 class Demo(QWidget):
     def __init__(self):
